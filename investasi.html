@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investasi - AstraKu Investasi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }
+        .card-hover:hover { transform: translateY(-5px); transition: all 0.3s ease; }
+        .timer { font-family: monospace; font-size: 0.9rem; }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+<nav class="bg-white shadow-md fixed w-full top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
+                <span class="text-white font-bold text-lg">A</span>
+            </div>
+            <span class="font-bold text-xl text-blue-900">AstraKu</span>
+            <span class="text-blue-600 font-semibold">Investasi</span>
+        </div>
+        <div id="nav-buttons" class="flex space-x-3"></div>
+    </div>
+</nav>
+
+<div class="container mx-auto px-4 pt-24 pb-12">
+    <!-- Header -->
+    <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-blue-900">🚀 Mulai Investasi</h1>
+        <p class="text-gray-500 mt-2">Pilih paket investasi yang sesuai dengan modal Anda</p>
+    </div>
+
+    <!-- Paket Investasi -->
+    <div id="paket-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12"></div>
+
+    <!-- Form Investasi -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-8" id="form-investasi-container" style="display: none;">
+        <h3 class="text-xl font-bold text-blue-900 mb-4">💰 Form Investasi</h3>
+        <div id="selected-paket-info" class="bg-blue-50 rounded-lg p-4 mb-4"></div>
+        <form id="investasi-form">
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2">Nominal Investasi (Rp)</label>
+                <input type="number" id="nominal" class="w-full border rounded-lg px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Masukkan nominal">
+                <p id="range-info" class="text-sm text-gray-500 mt-1"></p>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                <div class="flex justify-between mb-2">
+                    <span class="text-gray-600">Return per hari:</span>
+                    <span id="return-percent" class="font-bold text-green-600">0%</span>
+                </div>
+                <div class="flex justify-between mb-2">
+                    <span class="text-gray-600">Keuntungan per hari:</span>
+                    <span id="return-nominal" class="font-bold text-green-600">Rp 0</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Total keuntungan (selesai periode):</span>
+                    <span id="total-return" class="font-bold text-blue-900">Rp 0</span>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button type="button" onclick="cancelInvestasi()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold">Batal</button>
+                <button type="submit" class="flex-1 gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">Konfirmasi Investasi</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Investasi Aktif -->
+    <div class="bg-white rounded-2xl shadow-xl p-6">
+        <h3 class="text-xl font-bold text-blue-900 mb-4">📈 Investasi Aktif Saya</h3>
+        <div id="investasi-aktif" class="space-y-4"></div>
+    </div>
+
+    <!-- Modal Investasi Sukses -->
+    <div id="success-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 text-center">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Investasi Berhasil!</h3>
+            <p class="text-gray-500 mb-4">Investasi Anda telah aktif dan akan mulai memberikan return harian.</p>
+            <button onclick="closeSuccessModal()" class="gradient-bg text-white px-6 py-2 rounded-lg">Lihat Dashboard</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script>
+// Data Paket Investasi
+const PAKET = {
+    v1: { nama: 'Pot Astraku v1', min: 100000, max: 500000, return: 2, hari: 10, icon: '🌱', warna: 'from-green-500 to-green-600' },
+    v2: { nama: 'Pot Astraku v2', min: 500000, max: 2000000, return: 3, hari: 15, icon: '🌿', warna: 'from-blue-500 to-blue-600' },
+    v3: { nama: 'Pot Astraku v3', min: 2000000, max: 10000000, return: 5, hari: 20, icon: '🌳', warna: 'from-purple-500 to-purple-600' },
+    v4: { nama: 'Pot Astraku v4', min: 10000000, max: Infinity, return: 7, hari: 30, icon: '🏆', warna: 'from-yellow-500 to-yellow-600' }
+};
+
+let selectedPaket = null;
+
+// Load paket ke halaman
+function loadPaket() {
+    const container = document.getElementById('paket-container');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    for (let [key, paket] of Object.entries(PAKET)) {
+        container.innerHTML += `
+            <div class="bg-white rounded-xl shadow-lg p-6 card-hover border border-gray-100 cursor-pointer" onclick="pilihPaket('${key}')">
+                <div class="text-5xl mb-4">${paket.icon}</div>
+                <h3 class="text-xl font-bold text-gray-800">${paket.nama}</h3>
+                <div class="mt-3 space-y-2">
+                    <p class="text-gray-600 text-sm">💰 ${formatRupiah(paket.min)} - ${paket.max === Infinity ? 'Tak Terbatas' : formatRupiah(paket.max)}</p>
+                    <p class="text-green-600 font-bold">📈 Return ${paket.return}% / hari</p>
+                    <p class="text-gray-500 text-sm">⏱️ ${paket.hari} hari</p>
+                    <p class="text-blue-600 font-semibold">🎯 Total: ${paket.return * paket.hari}%</p>
+                </div>
+                <button class="mt-4 w-full gradient-bg text-white py-2 rounded-lg hover:opacity-90 transition text-sm font-semibold">Pilih Paket</button>
+            </div>
+        `;
+    }
+}
+
+// Pilih paket
+function pilihPaket(paketKey) {
+    const user = checkSession();
+    if (!user) {
+        if (confirm('Silakan login terlebih dahulu untuk berinvestasi. Login sekarang?')) {
+            window.location.href = 'login.html';
+        }
+        return;
+    }
+    
+    selectedPaket = { key: paketKey, ...PAKET[paketKey] };
+    
+    const formContainer = document.getElementById('form-investasi-container');
+    const selectedInfo = document.getElementById('selected-paket-info');
+    const rangeInfo = document.getElementById('range-info');
+    
+    selectedInfo.innerHTML = `
+        <div class="flex items-center gap-3">
+            <span class="text-3xl">${selectedPaket.icon}</span>
+            <div>
+                <p class="font-bold text-blue-900">${selectedPaket.nama}</p>
+                <p class="text-sm text-gray-600">Return ${selectedPaket.return}% per hari selama ${selectedPaket.hari} hari</p>
+            </div>
+        </div>
+    `;
+    
+    rangeInfo.innerHTML = `💰 Minimal ${formatRupiah(selectedPaket.min)} - Maksimal ${selectedPaket.max === Infinity ? 'Tak Terbatas' : formatRupiah(selectedPaket.max)}`;
+    formContainer.style.display = 'block';
+    
+    // Scroll ke form
+    formContainer.scrollIntoView({ behavior: 'smooth' });
+    
+    // Update perhitungan saat nominal berubah
+    const nominalInput = document.getElementById('nominal');
+    nominalInput.value = '';
+    nominalInput.focus();
+    updateReturnCalculation();
+}
+
+function updateReturnCalculation() {
+    if (!selectedPaket) return;
+    
+    const nominal = parseInt(document.getElementById('nominal').value) || 0;
+    const returnPerHari = (nominal * selectedPaket.return / 100);
+    const totalReturn = returnPerHari * selectedPaket.hari;
+    
+    document.getElementById('return-percent').innerHTML = `${selectedPaket.return}%`;
+    document.getElementById('return-nominal').innerHTML = formatRupiah(returnPerHari);
+    document.getElementById('total-return').innerHTML = formatRupiah(totalReturn);
+}
+
+// Cancel investasi
+function cancelInvestasi() {
+    document.getElementById('form-investasi-container').style.display = 'none';
+    selectedPaket = null;
+    document.getElementById('nominal').value = '';
+}
+
+// Submit investasi
+document.getElementById('investasi-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    if (!selectedPaket) {
+        alert('Pilih paket terlebih dahulu');
+        return;
+    }
+    
+    const user = checkSession();
+    if (!user) {
+        alert('Silakan login terlebih dahulu');
+        window.location.href = 'login.html';
+        return;
+    }
+    
+    const nominal = parseInt(document.getElementById('nominal').value);
+    
+    if (isNaN(nominal) || nominal < selectedPaket.min) {
+        alert(`Minimal investasi ${formatRupiah(selectedPaket.min)}`);
+        return;
+    }
+    
+    if (selectedPaket.max !== Infinity && nominal > selectedPaket.max) {
+        alert(`Maksimal investasi ${formatRupiah(selectedPaket.max)}`);
+        return;
+    }
+    
+    // Ambil data user terbaru
+    const userSnapshot = await db.ref('users/' + user.uid).once('value');
+    const userData = userSnapshot.val();
+    
+    if (nominal > (userData.saldo || 0)) {
+        alert(`Saldo tidak mencukupi! Saldo Anda: ${formatRupiah(userData.saldo || 0)}`);
+        return;
+    }
+    
+    // Hitung tanggal berakhir
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + selectedPaket.hari);
+    
+    // Kurangi saldo user
+    const newSaldo = (userData.saldo || 0) - nominal;
+    await db.ref('users/' + user.uid).update({ 
+        saldo: newSaldo,
+        total_deposit: (userData.total_deposit || 0) + nominal
+    });
+    
+    // Simpan investasi ke Firebase
+    const investasiData = {
+        user_id: user.uid,
+        username: user.username,
+        paket: selectedPaket.key,
+        paket_nama: selectedPaket.nama,
+        nominal: nominal,
+        return_persen: selectedPaket.return,
+        return_harian: (nominal * selectedPaket.return / 100),
+        hari_total: selectedPaket.hari,
+        hari_tersisa: selectedPaket.hari,
+        status: 'aktif',
+        created_at: new Date().toISOString(),
+        end_date: endDate.toISOString(),
+        total_return_diterima: 0
+    };
+    
+    await db.ref('investasi/' + Date.now()).set(investasiData);
+    
+    // Update localStorage
+    user.saldo = newSaldo;
+    localStorage.setItem('astraku_user', JSON.stringify(user));
+    
+    // Tampilkan modal sukses
+    document.getElementById('success-modal').classList.remove('hidden');
+    
+    // Reset form
+    cancelInvestasi();
+    
+    // Refresh investasi aktif
+    loadInvestasiAktif();
+});
+
+function closeSuccessModal() {
+    document.getElementById('success-modal').classList.add('hidden');
+    window.location.href = 'dashboard.html';
+}
+
+// Load investasi aktif user
+async function loadInvestasiAktif() {
+    const container = document.getElementById('investasi-aktif');
+    const user = checkSession();
+    
+    if (!user) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-8">Silakan login untuk melihat investasi Anda</p>';
+        return;
+    }
+    
+    const snapshot = await db.ref('investasi').once('value');
+    const investasi = snapshot.val() || {};
+    
+    let html = '';
+    let ada = false;
+    
+    for (let id in investasi) {
+        const inv = investasi[id];
+        if (inv.user_id === user.uid) {
+            ada = true;
+            const sisaHari = getRemainingDays(inv.end_date);
+            const progress = ((inv.hari_total - sisaHari) / inv.hari_total) * 100;
+            const statusBadge = inv.status === 'aktif' 
+                ? `<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Aktif</span>`
+                : `<span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">Selesai</span>`;
+            
+            html += `
+                <div class="border rounded-xl p-4 hover:shadow-md transition">
+                    <div class="flex justify-between items-start flex-wrap">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <h4 class="font-bold text-blue-900">${inv.paket_nama}</h4>
+                                ${statusBadge}
+                            </div>
+                            <p class="text-sm text-gray-600">💰 ${formatRupiah(inv.nominal)}</p>
+                            <p class="text-sm text-green-600">📈 ${inv.return_persen}% / hari (${formatRupiah(inv.return_harian)}/hari)</p>
+                            <p class="text-xs text-gray-400 mt-1">Mulai: ${formatDate(inv.created_at)}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-lg font-mono font-bold text-blue-900" id="timer-${id}">${sisaHari} hari</p>
+                            <p class="text-xs text-gray-400">Berakhir: ${formatDate(inv.end_date)}</p>
+                        </div>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
+                        <div class="gradient-bg h-2 rounded-full transition-all duration-500" style="width: ${progress}%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-500 mt-2">
+                        <span>Progress: ${Math.round(progress)}%</span>
+                        <span>Return diterima: ${formatRupiah(inv.total_return_diterima || 0)}</span>
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    container.innerHTML = ada ? html : '<p class="text-gray-500 text-center py-8">Belum ada investasi. Yuk mulai investasi sekarang!</p>';
+    
+    // Update timer setiap detik
+    for (let id in investasi) {
+        const inv = investasi[id];
+        if (inv.user_id === user.uid && inv.status === 'aktif') {
+            updateTimer(id, inv.end_date);
+        }
+    }
+}
+
+function updateTimer(id, endDate) {
+    const timerElement = document.getElementById(`timer-${id}`);
+    if (!timerElement) return;
+    
+    const interval = setInterval(() => {
+        const remaining = getRemainingDays(endDate);
+        if (timerElement) {
+            timerElement.innerHTML = `${remaining} hari`;
+        }
+        if (remaining <= 0) {
+            clearInterval(interval);
+            loadInvestasiAktif(); // Refresh jika sudah habis
+        }
+    }, 1000);
+}
+
+// Event listener untuk nominal input
+document.getElementById('nominal').addEventListener('input', updateReturnCalculation);
+
+// Inisialisasi
+document.addEventListener('DOMContentLoaded', () => {
+    updateNavbar();
+    loadPaket();
+    loadInvestasiAktif();
+});
+</script>
+</body>
+</html>

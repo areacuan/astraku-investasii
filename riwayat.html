@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riwayat Transaksi - AstraKu Investasi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }
+        .tab-active { border-bottom: 3px solid #3b82f6; color: #1e3a8a; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+<nav class="bg-white shadow-md fixed w-full top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
+                <span class="text-white font-bold text-lg">A</span>
+            </div>
+            <span class="font-bold text-xl text-blue-900">AstraKu</span>
+            <span class="text-blue-600 font-semibold">Investasi</span>
+        </div>
+        <div id="nav-buttons" class="flex space-x-3"></div>
+    </div>
+</nav>
+
+<div class="container mx-auto px-4 pt-24 pb-12">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-blue-900">📋 Riwayat Transaksi</h1>
+        <p class="text-gray-500 mt-2">Lihat semua aktivitas deposit, withdraw, dan investasi Anda</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex flex-wrap gap-2 border-b mb-6">
+        <button onclick="showTab('semua')" id="tab-semua" class="px-6 py-3 text-gray-600 hover:text-blue-900 transition tab-active">Semua</button>
+        <button onclick="showTab('deposit')" id="tab-deposit" class="px-6 py-3 text-gray-600 hover:text-blue-900 transition">💰 Deposit</button>
+        <button onclick="showTab('withdraw')" id="tab-withdraw" class="px-6 py-3 text-gray-600 hover:text-blue-900 transition">📤 Withdraw</button>
+        <button onclick="showTab('investasi')" id="tab-investasi" class="px-6 py-3 text-gray-600 hover:text-blue-900 transition">📈 Investasi</button>
+        <button onclick="showTab('return')" id="tab-return" class="px-6 py-3 text-gray-600 hover:text-blue-900 transition">💰 Return</button>
+    </div>
+
+    <!-- Filter Tanggal -->
+    <div class="bg-white rounded-xl p-4 shadow-sm mb-6 flex flex-wrap gap-4 items-end">
+        <div>
+            <label class="text-sm text-gray-600 block mb-1">Dari Tanggal</label>
+            <input type="date" id="start-date" class="border rounded-lg px-3 py-2">
+        </div>
+        <div>
+            <label class="text-sm text-gray-600 block mb-1">Sampai Tanggal</label>
+            <input type="date" id="end-date" class="border rounded-lg px-3 py-2">
+        </div>
+        <button onclick="filterByDate()" class="gradient-bg text-white px-4 py-2 rounded-lg">Filter</button>
+        <button onclick="resetFilter()" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg">Reset</button>
+        <button onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">📥 Export CSV</button>
+    </div>
+
+    <!-- Statistik Ringkasan -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">Total Deposit</p>
+            <p id="stat-deposit" class="text-xl font-bold text-green-600">Rp 0</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">Total Withdraw</p>
+            <p id="stat-withdraw" class="text-xl font-bold text-red-600">Rp 0</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">Total Investasi</p>
+            <p id="stat-investasi" class="text-xl font-bold text-blue-900">Rp 0</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">Total Return</p>
+            <p id="stat-return" class="text-xl font-bold text-purple-600">Rp 0</p>
+        </div>
+    </div>
+
+    <!-- Daftar Transaksi -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal & Waktu</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jenis</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nominal</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
+                    </tr>
+                </thead>
+                <tbody id="transaksi-table" class="divide-y divide-gray-200">
+                    <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script>
+let currentTab = 'semua';
+let allTransactions = [];
+let startDate = null;
+let endDate = null;
+
+// Ambil semua data user
+async function loadAllData() {
+    const user = checkSession();
+    if (!user) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    // Ambil data deposit dari orders
+    const ordersSnap = await db.ref('orders').once('value');
+    const orders = ordersSnap.val() || {};
+
+    // Ambil data withdraw
+    const withdrawSnap = await db.ref('withdraw').once('value');
+    const withdraws = withdrawSnap.val() || {};
+
+    // Ambil data investasi
+    const investasiSnap = await db.ref('investasi').once('value');
+    const investasis = investasiSnap.val() || {};
+
+    let transactions = [];
+
+    // Process Deposit
+    for (let id in orders) {
+        const order = orders[id];
+        if (order.user_id === user.uid && order.type === 'deposit') {
+            transactions.push({
+                id: id,
+                tanggal: order.paid_at || order.created_at,
+                jenis: 'deposit',
+                nominal: order.nominal,
+                status: order.status === 'paid' ? 'success' : order.status,
+                keterangan: `Deposit via QRIS - ${formatRupiah(order.nominal)}`,
+                icon: '💰'
+            });
+        }
+    }
+
+    // Process Withdraw
+    for (let id in withdraws) {
+        const wd = withdraws[id];
+        if (wd.user_id === user.uid) {
+            let statusText = 'pending';
+            if (wd.status === 'selesai') statusText = 'success';
+            if (wd.status === 'ditolak') statusText = 'failed';
+            
+            transactions.push({
+                id: id,
+                tanggal: wd.approved_at || wd.created_at,
+                jenis: 'withdraw',
+                nominal: wd.nominal,
+                status: statusText,
+                keterangan: `Withdraw ke ${wd.metode} - ${wd.nomor_rekening}`,
+                icon: '📤'
+            });
+        }
+    }
+
+    // Process Investasi
+    for (let id in investasis) {
+        const inv = investasis[id];
+        if (inv.user_id === user.uid) {
+            transactions.push({
+                id: id,
+                tanggal: inv.created_at,
+                jenis: 'investasi',
+                nominal: inv.nominal,
+                status: inv.status === 'aktif' ? 'active' : 'completed',
+                keterangan: `${inv.paket_nama} - Return ${inv.return_persen}% per hari`,
+                icon: '📈',
+                return_harian: inv.return_harian,
+                hari_total: inv.hari_total
+            });
+        }
+    }
+
+    // Process Return (dari investasi)
+    for (let id in investasis) {
+        const inv = investasis[id];
+        if (inv.user_id === user.uid && inv.total_return_diterima > 0) {
+            transactions.push({
+                id: id + '_return',
+                tanggal: inv.created_at,
+                jenis: 'return',
+                nominal: inv.total_return_diterima,
+                status: 'success',
+                keterangan: `Return dari ${inv.paket_nama} (${inv.return_persen}% per hari)`,
+                icon: '💰'
+            });
+        }
+    }
+
+    // Sort by tanggal (terbaru di atas)
+    transactions.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+    allTransactions = transactions;
+    
+    updateStats();
+    filterAndRender();
+}
+
+function updateStats() {
+    let totalDeposit = 0;
+    let totalWithdraw = 0;
+    let totalInvestasi = 0;
+    let totalReturn = 0;
+
+    for (const tr of allTransactions) {
+        if (tr.jenis === 'deposit' && tr.status === 'success') totalDeposit += tr.nominal;
+        if (tr.jenis === 'withdraw' && tr.status === 'success') totalWithdraw += tr.nominal;
+        if (tr.jenis === 'investasi') totalInvestasi += tr.nominal;
+        if (tr.jenis === 'return') totalReturn += tr.nominal;
+    }
+
+    document.getElementById('stat-deposit').innerHTML = formatRupiah(totalDeposit);
+    document.getElementById('stat-withdraw').innerHTML = formatRupiah(totalWithdraw);
+    document.getElementById('stat-investasi').innerHTML = formatRupiah(totalInvestasi);
+    document.getElementById('stat-return').innerHTML = formatRupiah(totalReturn);
+}
+
+function filterAndRender() {
+    let filtered = [...allTransactions];
+    
+    // Filter by tab
+    if (currentTab !== 'semua') {
+        filtered = filtered.filter(tr => tr.jenis === currentTab);
+    }
+    
+    // Filter by date
+    if (startDate) {
+        filtered = filtered.filter(tr => new Date(tr.tanggal) >= startDate);
+    }
+    if (endDate) {
+        filtered = filtered.filter(tr => new Date(tr.tanggal) <= endDate);
+    }
+    
+    renderTable(filtered);
+}
+
+function renderTable(transactions) {
+    const tbody = document.getElementById('transaksi-table');
+    
+    if (transactions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Tidak ada transaksi</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = transactions.map(tr => {
+        let statusBadge = '';
+        let nominalClass = '';
+        
+        if (tr.jenis === 'deposit') {
+            nominalClass = 'text-green-600';
+            if (tr.status === 'success') statusBadge = '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Berhasil</span>';
+            else if (tr.status === 'pending') statusBadge = '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Pending</span>';
+            else statusBadge = '<span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">Gagal</span>';
+        } 
+        else if (tr.jenis === 'withdraw') {
+            nominalClass = 'text-red-600';
+            if (tr.status === 'success') statusBadge = '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Selesai</span>';
+            else if (tr.status === 'pending') statusBadge = '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Diproses</span>';
+            else statusBadge = '<span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">Ditolak</span>';
+        }
+        else if (tr.jenis === 'investasi') {
+            nominalClass = 'text-blue-900';
+            if (tr.status === 'active') statusBadge = '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Aktif</span>';
+            else statusBadge = '<span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">Selesai</span>';
+        }
+        else {
+            nominalClass = 'text-purple-600';
+            statusBadge = '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Diterima</span>';
+        }
+        
+        let jenisLabel = '';
+        if (tr.jenis === 'deposit') jenisLabel = '💰 Deposit';
+        else if (tr.jenis === 'withdraw') jenisLabel = '📤 Withdraw';
+        else if (tr.jenis === 'investasi') jenisLabel = '📈 Investasi';
+        else jenisLabel = '💰 Return Harian';
+        
+        return `
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap text-sm">${new Date(tr.tanggal).toLocaleString('id-ID')}</td>
+                <td class="px-6 py-4">
+                    <div class="flex items-center gap-2">
+                        <span>${jenisLabel}</span>
+                    </div>
+                </td>
+                <td class="px-6 py-4 font-semibold ${nominalClass}">${formatRupiah(tr.nominal)}</td>
+                <td class="px-6 py-4">${statusBadge}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">${tr.keterangan}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function showTab(tab) {
+    currentTab = tab;
+    
+    // Update tab style
+    document.querySelectorAll('[id^="tab-"]').forEach(el => {
+        el.classList.remove('tab-active', 'text-blue-900', 'font-semibold');
+        el.classList.add('text-gray-600');
+    });
+    document.getElementById(`tab-${tab}`).classList.add('tab-active', 'text-blue-900', 'font-semibold');
+    document.getElementById(`tab-${tab}`).classList.remove('text-gray-600');
+    
+    filterAndRender();
+}
+
+function filterByDate() {
+    const start = document.getElementById('start-date').value;
+    const end = document.getElementById('end-date').value;
+    
+    startDate = start ? new Date(start) : null;
+    endDate = end ? new Date(end) : null;
+    if (endDate) endDate.setHours(23, 59, 59);
+    
+    filterAndRender();
+}
+
+function resetFilter() {
+    document.getElementById('start-date').value = '';
+    document.getElementById('end-date').value = '';
+    startDate = null;
+    endDate = null;
+    filterAndRender();
+}
+
+function exportToCSV() {
+    let filtered = [...allTransactions];
+    
+    if (currentTab !== 'semua') {
+        filtered = filtered.filter(tr => tr.jenis === currentTab);
+    }
+    if (startDate) {
+        filtered = filtered.filter(tr => new Date(tr.tanggal) >= startDate);
+    }
+    if (endDate) {
+        filtered = filtered.filter(tr => new Date(tr.tanggal) <= endDate);
+    }
+    
+    if (filtered.length === 0) {
+        alert('Tidak ada data untuk diexport');
+        return;
+    }
+    
+    const headers = ['Tanggal', 'Jenis', 'Nominal', 'Status', 'Keterangan'];
+    const rows = filtered.map(tr => [
+        new Date(tr.tanggal).toLocaleString('id-ID'),
+        tr.jenis,
+        tr.nominal,
+        tr.status,
+        tr.keterangan
+    ]);
+    
+    const csvContent = [headers, ...rows]
+        .map(row => row.map(cell => `"${cell}"`).join(','))
+        .join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.setAttribute('download', `riwayat_${currentTab}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+// Cek session dan load data
+document.addEventListener('DOMContentLoaded', () => {
+    updateNavbar();
+    const user = requireAuth();
+    if (user) {
+        loadAllData();
+    }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "astraku-investasi",
+  "version": "1.0.0",
+  "description": "AstraKu Investasi - Platform Investasi Online",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

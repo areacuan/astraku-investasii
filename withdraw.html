@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Withdraw - AstraKu Investasi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>*{font-family:'Inter',sans-serif;}.gradient-bg{background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);}</style>
+</head>
+<body class="bg-gray-50">
+
+<nav class="bg-white shadow-md fixed w-full top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
+                <span class="text-white font-bold text-lg">A</span>
+            </div>
+            <span class="font-bold text-xl text-blue-900">AstraKu</span>
+            <span class="text-blue-600 font-semibold">Investasi</span>
+        </div>
+        <div id="nav-buttons" class="flex space-x-3"></div>
+    </div>
+</nav>
+
+<div class="container mx-auto px-4 pt-24 pb-12 max-w-2xl">
+    <div class="bg-white rounded-2xl shadow-xl p-6">
+        <h2 class="text-2xl font-bold text-blue-900 mb-2">📤 Withdraw Saldo</h2>
+        <p class="text-gray-500 mb-6">Minimal: Rp50.000 • Maksimal: Rp10.000.000/hari</p>
+        
+        <div class="bg-blue-50 rounded-lg p-4 mb-6">
+            <p class="text-blue-900">Saldo saat ini: <span id="saldo-tampil" class="font-bold text-xl">Rp 0</span></p>
+        </div>
+        
+        <form id="withdraw-form">
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2">Nominal Withdraw (Rp)</label>
+                <input type="number" id="nominal" min="50000" max="10000000" class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2">Metode</label>
+                <select id="metode" class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <option value="">Pilih Metode</option>
+                    <optgroup label="Bank">
+                        <option value="BCA">BCA</option>
+                        <option value="Mandiri">Mandiri</option>
+                        <option value="BRI">BRI</option>
+                        <option value="BNI">BNI</option>
+                    </optgroup>
+                    <optgroup label="E-Wallet">
+                        <option value="DANA">DANA</option>
+                        <option value="OVO">OVO</option>
+                        <option value="GoPay">GoPay</option>
+                        <option value="LinkAja">LinkAja</option>
+                    </optgroup>
+                </select>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2">Nomor Rekening / E-Wallet</label>
+                <input type="text" id="nomor_rekening" class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+            </div>
+            
+            <div class="mb-6">
+                <label class="block text-gray-700 mb-2">Nama Pemilik</label>
+                <input type="text" id="nama_pemilik" class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+            </div>
+            
+            <button type="submit" class="w-full gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">Ajukan Withdraw</button>
+        </form>
+    </div>
+    
+    <!-- Riwayat Withdraw -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mt-6">
+        <h3 class="text-lg font-bold text-blue-900 mb-4">Riwayat Withdraw</h3>
+        <div id="riwayat-container" class="space-y-3 max-h-96 overflow-y-auto"></div>
+    </div>
+</div>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script>
+let userData = null;
+
+async function loadUserData() {
+    const user = checkSession();
+    if (!user) return;
+    
+    const snapshot = await db.ref('users/' + user.uid).once('value');
+    userData = { uid: user.uid, ...snapshot.val() };
+    document.getElementById('saldo-tampil').innerHTML = formatRupiah(userData.saldo || 0);
+    
+    // Prefill data rekening
+    if (userData.bank) document.getElementById('metode').value = userData.bank;
+    if (userData.nomor_rekening) document.getElementById('nomor_rekening').value = userData.nomor_rekening;
+    if (userData.nama_pemilik) document.getElementById('nama_pemilik').value = userData.nama_pemilik;
+}
+
+async function loadRiwayat() {
+    const container = document.getElementById('riwayat-container');
+    const user = checkSession();
+    if (!user) return;
+    
+    const snapshot = await db.ref('withdraw').once('value');
+    const withdraws = snapshot.val() || {};
+    
+    let html = '';
+    const userWithdraws = Object.entries(withdraws).filter(([id, wd]) => wd.user_id === user.uid);
+    const sorted = userWithdraws.sort((a, b) => new Date(b[1].created_at) - new Date(a[1].created_at));
+    
+    for (let [id, wd] of sorted) {
+        const statusBadge = wd.status === 'selesai' 
+            ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Selesai</span>'
+            : '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Diproses</span>';
+        
+        html += `
+            <div class="bg-gray-50 rounded-lg p-3">
+                <div class="flex justify-between items-center flex-wrap">
+                    <div>
+                        <p class="font-semibold">${formatRupiah(wd.nominal)}</p>
+                        <p class="text-xs text-gray-500">${wd.metode} - ${wd.nomor_rekening}</p>
+                    </div>
+                    <div class="text-right">
+                        ${statusBadge}
+                        <p class="text-xs text-gray-400">${formatDate(wd.created_at)}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = html || '<p class="text-gray-500 text-center">Belum ada riwayat withdraw</p>';
+}
+
+document.getElementById('withdraw-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const user = checkSession();
+    if (!user) {
+        alert('Silakan login terlebih dahulu');
+        window.location.href = 'login.html';
+        return;
+    }
+    
+    const nominal = parseInt(document.getElementById('nominal').value);
+    const metode = document.getElementById('metode').value;
+    const nomorRekening = document.getElementById('nomor_rekening').value;
+    const namaPemilik = document.getElementById('nama_pemilik').value;
+    
+    if (nominal < 50000) {
+        alert('Minimal withdraw Rp50.000');
+        return;
+    }
+    if (nominal > 10000000) {
+        alert('Maksimal withdraw per hari Rp10.000.000');
+        return;
+    }
+    if (!metode) {
+        alert('Pilih metode withdraw');
+        return;
+    }
+    if (!nomorRekening || !namaPemilik) {
+        alert('Isi nomor rekening/e-wallet dan nama pemilik');
+        return;
+    }
+    if (nominal > (userData?.saldo || 0)) {
+        alert('Saldo tidak mencukupi');
+        return;
+    }
+    
+    // Kurangi saldo
+    const newSaldo = (userData?.saldo || 0) - nominal;
+    await db.ref('users/' + user.uid).update({ saldo: newSaldo });
+    
+    // Simpan request withdraw
+    const withdrawData = {
+        user_id: user.uid,
+        username: user.username,
+        nominal: nominal,
+        metode: metode,
+        nomor_rekening: nomorRekening,
+        nama_pemilik: namaPemilik,
+        status: 'proses',
+        created_at: new Date().toISOString()
+    };
+    
+    await db.ref('withdraw/' + Date.now()).set(withdrawData);
+    
+    alert('Permintaan withdraw berhasil diajukan! Menunggu persetujuan admin.');
+    
+    // Update user data
+    userData.saldo = newSaldo;
+    localStorage.setItem('astraku_user', JSON.stringify(userData));
+    
+    document.getElementById('nominal').value = '';
+    loadUserData();
+    loadRiwayat();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    updateNavbar();
+    requireAuth();
+    loadUserData();
+    loadRiwayat();
+});
+</script>
+</body>
+</html>

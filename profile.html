@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - AstraKu Investasi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>*{font-family:'Inter',sans-serif;}.gradient-bg{background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);}</style>
+</head>
+<body class="bg-gray-50">
+
+<nav class="bg-white shadow-md fixed w-full top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
+                <span class="text-white font-bold text-lg">A</span>
+            </div>
+            <span class="font-bold text-xl text-blue-900">AstraKu</span>
+            <span class="text-blue-600 font-semibold">Investasi</span>
+        </div>
+        <div id="nav-buttons" class="flex space-x-3"></div>
+    </div>
+</nav>
+
+<div class="container mx-auto px-4 pt-24 pb-12 max-w-2xl">
+    <!-- Profile Card -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+        <div class="flex items-center space-x-4 mb-6">
+            <div class="w-16 h-16 gradient-bg rounded-full flex items-center justify-center">
+                <span class="text-white text-2xl font-bold" id="avatar">U</span>
+            </div>
+            <div>
+                <h2 id="profile-username" class="text-xl font-bold text-blue-900">Username</h2>
+                <p id="profile-email" class="text-gray-500">email@example.com</p>
+            </div>
+        </div>
+        
+        <div class="border-t pt-4">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <p class="text-gray-500 text-sm">Nomor Telepon</p>
+                    <p id="profile-telepon" class="font-medium">-</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 text-sm">Bergabung Sejak</p>
+                    <p id="profile-joined" class="font-medium">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Data Rekening -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+        <h3 class="text-lg font-bold text-blue-900 mb-4">💳 Data Rekening</h3>
+        <div id="rekening-info" class="space-y-2">
+            <p><span class="text-gray-500">Metode:</span> <span id="rekening-metode">-</span></p>
+            <p><span class="text-gray-500">Nomor:</span> <span id="rekening-nomor">-</span></p>
+            <p><span class="text-gray-500">Nama Pemilik:</span> <span id="rekening-nama">-</span></p>
+        </div>
+        <button onclick="editRekening()" class="mt-4 text-blue-600 font-semibold">Edit Data Rekening</button>
+    </div>
+    
+    <!-- Referral Info -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+        <h3 class="text-lg font-bold text-blue-900 mb-4">🔗 Kode Referral</h3>
+        <div class="bg-gray-100 rounded-lg p-3 flex justify-between items-center">
+            <code id="referral-code" class="font-mono font-bold text-blue-900">-</code>
+            <button onclick="copyReferralLink()" class="gradient-bg text-white px-4 py-2 rounded-lg text-sm">Salin Link</button>
+        </div>
+        <p class="text-sm text-gray-500 mt-3">Bagikan link referral Anda, dapatkan bonus 5% dari setiap deposit downline!</p>
+    </div>
+    
+    <!-- Ganti Password -->
+    <div class="bg-white rounded-2xl shadow-xl p-6">
+        <h3 class="text-lg font-bold text-blue-900 mb-4">🔒 Ganti Password</h3>
+        <form id="change-password-form">
+            <div class="mb-3">
+                <input type="password" id="old_password" placeholder="Password Lama" class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+            </div>
+            <div class="mb-3">
+                <input type="password" id="new_password" placeholder="Password Baru" class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+            </div>
+            <div class="mb-4">
+                <input type="password" id="confirm_password" placeholder="Konfirmasi Password Baru" class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+            </div>
+            <button type="submit" class="w-full gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">Ganti Password</button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Edit Rekening -->
+<div id="edit-rekening-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
+        <h3 class="text-xl font-bold text-blue-900 mb-4">Edit Data Rekening</h3>
+        <form id="edit-rekening-form">
+            <div class="mb-3">
+                <label class="block text-gray-700 mb-1">Metode (Bank/E-Wallet)</label>
+                <select id="edit-metode" class="w-full border rounded-lg px-4 py-2" required>
+                    <option value="BCA">BCA</option>
+                    <option value="Mandiri">Mandiri</option>
+                    <option value="BRI">BRI</option>
+                    <option value="BNI">BNI</option>
+                    <option value="DANA">DANA</option>
+                    <option value="OVO">OVO</option>
+                    <option value="GoPay">GoPay</option>
+                    <option value="LinkAja">LinkAja</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="block text-gray-700 mb-1">Nomor Rekening / E-Wallet</label>
+                <input type="text" id="edit-nomor" class="w-full border rounded-lg px-4 py-2" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-1">Nama Pemilik</label>
+                <input type="text" id="edit-nama" class="w-full border rounded-lg px-4 py-2" required>
+            </div>
+            <div class="flex gap-3">
+                <button type="button" onclick="closeEditModal()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg">Batal</button>
+                <button type="submit" class="flex-1 gradient-bg text-white py-2 rounded-lg">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script>
+let profileUser = null;
+
+async function loadProfile() {
+    const user = checkSession();
+    if (!user) return;
+    
+    const snapshot = await db.ref('users/' + user.uid).once('value');
+    profileUser = { uid: user.uid, ...snapshot.val() };
+    
+    // Update tampilan
+    document.getElementById('avatar').innerHTML = (profileUser.username?.charAt(0) || 'U').toUpperCase();
+    document.getElementById('profile-username').innerHTML = profileUser.username || '-';
+    document.getElementById('profile-email').innerHTML = profileUser.email || '-';
+    document.getElementById('profile-telepon').innerHTML = profileUser.telepon || '-';
+    document.getElementById('profile-joined').innerHTML = formatDate(profileUser.created_at || new Date());
+    
+    document.getElementById('rekening-metode').innerHTML = profileUser.bank || '-';
+    document.getElementById('rekening-nomor').innerHTML = profileUser.nomor_rekening || '-';
+    document.getElementById('rekening-nama').innerHTML = profileUser.nama_pemilik || '-';
+    document.getElementById('referral-code').innerHTML = profileUser.referral_code || '-';
+}
+
+function editRekening() {
+    if (!profileUser) return;
+    document.getElementById('edit-metode').value = profileUser.bank || 'BCA';
+    document.getElementById('edit-nomor').value = profileUser.nomor_rekening || '';
+    document.getElementById('edit-nama').value = profileUser.nama_pemilik || '';
+    document.getElementById('edit-rekening-modal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+    document.getElementById('edit-rekening-modal').classList.add('hidden');
+}
+
+document.getElementById('edit-rekening-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const user = checkSession();
+    if (!user) return;
+    
+    const metode = document.getElementById('edit-metode').value;
+    const nomor = document.getElementById('edit-nomor').value;
+    const nama = document.getElementById('edit-nama').value;
+    
+    await db.ref('users/' + user.uid).update({
+        bank: metode,
+        nomor_rekening: nomor,
+        nama_pemilik: nama
+    });
+    
+    alert('Data rekening berhasil diupdate!');
+    closeEditModal();
+    loadProfile();
+    
+    // Update localStorage
+    const newSnapshot = await db.ref('users/' + user.uid).once('value');
+    localStorage.setItem('astraku_user', JSON.stringify({ uid: user.uid, ...newSnapshot.val() }));
+});
+
+document.getElementById('change-password-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const user = checkSession();
+    if (!user) return;
+    
+    const oldPass = document.getElementById('old_password').value;
+    const newPass = document.getElementById('new_password').value;
+    const confirmPass = document.getElementById('confirm_password').value;
+    
+    if (oldPass !== profileUser.password) {
+        alert('Password lama salah');
+        return;
+    }
+    if (newPass !== confirmPass) {
+        alert('Password baru tidak cocok');
+        return;
+    }
+    if (newPass.length < 6) {
+        alert('Password minimal 6 karakter');
+        return;
+    }
+    
+    await db.ref('users/' + user.uid).update({ password: newPass });
+    alert('Password berhasil diganti!');
+    
+    document.getElementById('old_password').value = '';
+    document.getElementById('new_password').value = '';
+    document.getElementById('confirm_password').value = '';
+    
+    profileUser.password = newPass;
+    localStorage.setItem('astraku_user', JSON.stringify(profileUser));
+});
+
+function copyReferralLink() {
+    const user = checkSession();
+    if (!user) return;
+    const link = `${window.location.origin}/register.html?ref=${user.referral_code}`;
+    navigator.clipboard.writeText(link);
+    alert('Link referral disalin!');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    updateNavbar();
+    requireAuth();
+    loadProfile();
+});
+</script>
+</body>
+</html>
