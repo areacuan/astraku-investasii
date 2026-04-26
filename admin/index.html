@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - AstraKu Investasi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>*{font-family:'Inter',sans-serif;}.gradient-bg{background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);}</style>
+</head>
+<body class="bg-gray-50">
+
+<nav class="bg-white shadow-md fixed w-full top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
+                <span class="text-white font-bold text-lg">A</span>
+            </div>
+            <span class="font-bold text-xl text-blue-900">AstraKu</span>
+            <span class="text-blue-600 font-semibold">Admin</span>
+        </div>
+        <div class="flex space-x-3">
+            <a href="index.html" class="px-3 py-2 text-blue-600 font-semibold">Dashboard</a>
+            <a href="users.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Users</a>
+            <a href="investasi.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Investasi</a>
+            <a href="withdraw.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Withdraw</a>
+            <a href="laporan.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Laporan</a>
+            <button onclick="logout()" class="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">Logout</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container mx-auto px-4 pt-24 pb-12">
+    <h1 class="text-2xl font-bold text-blue-900 mb-6">Admin Dashboard</h1>
+    
+    <!-- Stat Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">Total User</p>
+            <p id="total-user" class="text-2xl font-bold text-blue-900">0</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">Total Deposit</p>
+            <p id="total-deposit" class="text-2xl font-bold text-green-600">Rp 0</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">Total Withdraw</p>
+            <p id="total-withdraw" class="text-2xl font-bold text-red-600">Rp 0</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">Return Dibagikan</p>
+            <p id="total-return" class="text-2xl font-bold text-purple-600">Rp 0</p>
+        </div>
+    </div>
+    
+    <!-- Grafik -->
+    <div class="bg-white rounded-xl p-6 shadow-sm mb-8">
+        <h3 class="text-lg font-bold text-blue-900 mb-4">Grafik Deposit Harian</h3>
+        <canvas id="deposit-chart" height="100"></canvas>
+    </div>
+    
+    <!-- Top 5 Investor -->
+    <div class="bg-white rounded-xl p-6 shadow-sm">
+        <h3 class="text-lg font-bold text-blue-900 mb-4">Top 5 Investor</h3>
+        <div id="top-investor" class="space-y-3"></div>
+    </div>
+</div>
+
+<script src="../js/firebase-config.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+let depositChart = null;
+
+async function loadAdminStats() {
+    const usersSnapshot = await db.ref('users').once('value');
+    const users = usersSnapshot.val() || {};
+    
+    let totalUser = 0;
+    let totalDeposit = 0;
+    let totalWithdraw = 0;
+    let totalReturn = 0;
+    let userInvestments = [];
+    
+    for (let uid in users) {
+        if (!users[uid].banned) totalUser++;
+        totalDeposit += users[uid].total_deposit || 0;
+        totalWithdraw += users[uid].total_withdraw || 0;
+        totalReturn += users[uid].total_return || 0;
+        userInvestments.push({
+            username: users[uid].username,
+            total_invest: users[uid].total_deposit || 0
+        });
+    }
+    
+    document.getElementById('total-user').innerHTML = totalUser;
+    document.getElementById('total-deposit').innerHTML = formatRupiah(totalDeposit);
+    document.getElementById('total-withdraw').innerHTML = formatRupiah(totalWithdraw);
+    document.getElementById('total-return').innerHTML = formatRupiah(totalReturn);
+    
+    // Top 5 investor
+    const top5 = userInvestments.sort((a, b) => b.total_invest - a.total_invest).slice(0, 5);
+    const container = document.getElementById('top-investor');
+    container.innerHTML = top5.map((inv, i) => `
+        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+            <div class="flex items-center gap-3">
+                <span class="text-lg font-bold text-blue-900">#${i+1}</span>
+                <span>${inv.username}</span>
+            </div>
+            <span class="font-semibold">${formatRupiah(inv.total_invest)}</span>
+        </div>
+    `).join('');
+}
+
+async function loadChart() {
+    // Ambil deposit per hari (data dari orders yang paid)
+    const ordersSnapshot = await db.ref('orders').once('value');
+    const orders = ordersSnapshot.val() || {};
+    
+    const depositByDate = {};
+    for (let id in orders) {
+        const order = orders[id];
+        if (order.type === 'deposit' && order.status === 'paid' && order.paid_at) {
+            const date = new Date(order.paid_at).toLocaleDateString('id-ID');
+            depositByDate[date] = (depositByDate[date] || 0) + order.nominal;
+        }
+    }
+    
+    const labels = Object.keys(depositByDate).slice(-7);
+    const data = labels.map(label => depositByDate[label] || 0);
+    
+    if (depositChart) depositChart.destroy();
+    
+    const ctx = document.getElementById('deposit-chart').getContext('2d');
+    depositChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Total Deposit (Rp)',
+                data: data,
+                backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `Rp ${ctx.raw.toLocaleString('id-ID')}`
+                    }
+                }
+            }
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Cek admin (sederhana: role harus admin)
+    const user = checkSession();
+    if (!user || user.role !== 'admin') {
+        window.location.href = '../index.html';
+        return;
+    }
+    
+    loadAdminStats();
+    loadChart();
+});
+</script>
+</body>
+</html>
