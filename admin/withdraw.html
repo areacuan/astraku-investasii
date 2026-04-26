@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelola Withdraw - Admin AstraKu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>*{font-family:'Inter',sans-serif;}.gradient-bg{background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);}</style>
+</head>
+<body class="bg-gray-50">
+
+<nav class="bg-white shadow-md fixed w-full top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
+                <span class="text-white font-bold text-lg">A</span>
+            </div>
+            <span class="font-bold text-xl text-blue-900">AstraKu</span>
+            <span class="text-blue-600 font-semibold">Admin</span>
+        </div>
+        <div class="flex space-x-3">
+            <a href="index.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Dashboard</a>
+            <a href="users.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Users</a>
+            <a href="investasi.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Investasi</a>
+            <a href="withdraw.html" class="px-3 py-2 text-blue-600 font-semibold">Withdraw</a>
+            <a href="laporan.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Laporan</a>
+            <button onclick="logout()" class="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">Logout</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container mx-auto px-4 pt-24 pb-12">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-blue-900">📤 Kelola Withdraw</h1>
+        <div class="flex gap-2">
+            <input type="date" id="filter-date" class="border rounded-lg px-4 py-2">
+            <select id="status-filter" class="border rounded-lg px-4 py-2">
+                <option value="all">Semua</option>
+                <option value="proses">Proses</option>
+                <option value="selesai">Selesai</option>
+            </select>
+            <button onclick="loadWithdraw()" class="gradient-bg text-white px-4 py-2 rounded-lg">Refresh</button>
+        </div>
+    </div>
+    
+    <!-- Tabel Withdraw -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nominal</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metode</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rekening</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="withdraw-table-body" class="divide-y divide-gray-200"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="../js/firebase-config.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+let withdrawList = [];
+
+async function loadWithdraw() {
+    const snapshot = await db.ref('withdraw').once('value');
+    const withdraws = snapshot.val() || {};
+    const statusFilter = document.getElementById('status-filter').value;
+    const dateFilter = document.getElementById('filter-date').value;
+    
+    withdrawList = [];
+    for (let id in withdraws) {
+        const wd = withdraws[id];
+        if (statusFilter !== 'all' && wd.status !== statusFilter) continue;
+        if (dateFilter && new Date(wd.created_at).toLocaleDateString('id-ID') !== new Date(dateFilter).toLocaleDateString('id-ID')) continue;
+        
+        withdrawList.push({
+            id: id,
+            ...wd
+        });
+    }
+    
+    withdrawList.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    renderWithdraw();
+}
+
+function renderWithdraw() {
+    const tbody = document.getElementById('withdraw-table-body');
+    tbody.innerHTML = withdrawList.map(wd => {
+        const statusBadge = wd.status === 'selesai' 
+            ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Selesai</span>'
+            : '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Proses</span>';
+        
+        return `
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4">
+                    <div class="font-medium">${wd.username || '-'}</div>
+                    <div class="text-xs text-gray-500">${wd.user_id?.slice(0, 8)}...</div>
+                </td>
+                <td class="px-6 py-4 font-semibold text-red-600">${formatRupiah(wd.nominal)}</td>
+                <td class="px-6 py-4">${wd.metode || '-'}</td>
+                <td class="px-6 py-4">
+                    <div>${wd.nomor_rekening || '-'}</div>
+                    <div class="text-xs text-gray-500">${wd.nama_pemilik || '-'}</div>
+                </td>
+                <td class="px-6 py-4">${new Date(wd.created_at).toLocaleString()}</td>
+                <td class="px-6 py-4">${statusBadge}</td>
+                <td class="px-6 py-4">
+                    ${wd.status === 'proses' ? `
+                        <div class="flex gap-2">
+                            <button onclick="approveWithdraw('${wd.id}')" class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700">Setujui</button>
+                            <button onclick="rejectWithdraw('${wd.id}')" class="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700">Tolak</button>
+                        </div>
+                    ` : '-'}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function approveWithdraw(id) {
+    if (!confirm('Setujui withdraw ini? Status akan diubah menjadi SELESAI.')) return;
+    
+    await db.ref('withdraw/' + id).update({
+        status: 'selesai',
+        approved_at: new Date().toISOString(),
+        approved_by: checkSession()?.username
+    });
+    
+    alert('Withdraw disetujui!');
+    loadWithdraw();
+}
+
+async function rejectWithdraw(id) {
+    if (!confirm('Tolak withdraw ini? Saldo akan dikembalikan ke user.')) return;
+    
+    const snapshot = await db.ref('withdraw/' + id).once('value');
+    const withdraw = snapshot.val();
+    
+    if (withdraw) {
+        // Kembalikan saldo ke user
+        const userSnapshot = await db.ref('users/' + withdraw.user_id).once('value');
+        const user = userSnapshot.val();
+        const newSaldo = (user.saldo || 0) + withdraw.nominal;
+        
+        await db.ref('users/' + withdraw.user_id).update({ saldo: newSaldo });
+        await db.ref('withdraw/' + id).update({
+            status: 'ditolak',
+            rejected_at: new Date().toISOString(),
+            rejected_by: checkSession()?.username
+        });
+        
+        alert('Withdraw ditolak! Saldo dikembalikan.');
+    }
+    
+    loadWithdraw();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const user = checkSession();
+    if (!user || user.role !== 'admin') {
+        window.location.href = '../index.html';
+        return;
+    }
+    loadWithdraw();
+    
+    document.getElementById('status-filter').addEventListener('change', () => loadWithdraw());
+    document.getElementById('filter-date').addEventListener('change', () => loadWithdraw());
+});
+</script>
+</body>
+</html>

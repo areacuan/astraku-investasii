@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laporan Keuangan - Admin AstraKu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>*{font-family:'Inter',sans-serif;}.gradient-bg{background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);}</style>
+</head>
+<body class="bg-gray-50">
+
+<nav class="bg-white shadow-md fixed w-full top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
+                <span class="text-white font-bold text-lg">A</span>
+            </div>
+            <span class="font-bold text-xl text-blue-900">AstraKu</span>
+            <span class="text-blue-600 font-semibold">Admin</span>
+        </div>
+        <div class="flex space-x-3">
+            <a href="index.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Dashboard</a>
+            <a href="users.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Users</a>
+            <a href="investasi.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Investasi</a>
+            <a href="withdraw.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Withdraw</a>
+            <a href="laporan.html" class="px-3 py-2 text-blue-600 font-semibold">Laporan</a>
+            <button onclick="logout()" class="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">Logout</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container mx-auto px-4 pt-24 pb-12">
+    <h1 class="text-2xl font-bold text-blue-900 mb-6">📋 Laporan Keuangan</h1>
+    
+    <!-- Filter -->
+    <div class="bg-white rounded-xl p-6 shadow-sm mb-6">
+        <div class="flex flex-wrap gap-4 items-end">
+            <div>
+                <label class="block text-gray-600 text-sm mb-1">Dari Tanggal</label>
+                <input type="date" id="start-date" class="border rounded-lg px-4 py-2">
+            </div>
+            <div>
+                <label class="block text-gray-600 text-sm mb-1">Sampai Tanggal</label>
+                <input type="date" id="end-date" class="border rounded-lg px-4 py-2">
+            </div>
+            <button onclick="loadLaporan()" class="gradient-bg text-white px-6 py-2 rounded-lg">Filter</button>
+            <button onclick="exportCSV()" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">Export CSV</button>
+        </div>
+    </div>
+    
+    <!-- Ringkasan -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">Total Pemasukan</p>
+            <p id="total-pemasukan" class="text-2xl font-bold text-green-600">Rp 0</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">Total Pengeluaran</p>
+            <p id="total-pengeluaran" class="text-2xl font-bold text-red-600">Rp 0</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">Laba Bersih</p>
+            <p id="total-laba" class="text-2xl font-bold text-blue-900">Rp 0</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <p class="text-gray-500 text-sm">Jumlah Transaksi</p>
+            <p id="total-transaksi" class="text-2xl font-bold text-purple-600">0</p>
+        </div>
+    </div>
+    
+    <!-- Grafik -->
+    <div class="bg-white rounded-xl p-6 shadow-sm mb-6">
+        <h3 class="text-lg font-bold text-blue-900 mb-4">Grafik Pemasukan vs Pengeluaran</h3>
+        <canvas id="chart-laporan" height="100"></canvas>
+    </div>
+    
+    <!-- Tabel Transaksi -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <h3 class="text-lg font-bold text-blue-900 p-6 pb-0">Detail Transaksi</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jenis</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nominal</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
+                    </tr>
+                </thead>
+                <tbody id="transaksi-table-body" class="divide-y divide-gray-200"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="../js/firebase-config.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+let chartInstance = null;
+let laporanData = [];
+
+async function loadLaporan() {
+    let startDate = document.getElementById('start-date').value;
+    let endDate = document.getElementById('end-date').value;
+    
+    if (!startDate || !endDate) {
+        // Default: 30 hari terakhir
+        const end = new Date();
+        const start = new Date();
+        start.setDate(start.getDate() - 30);
+        startDate = start.toISOString().split('T')[0];
+        endDate = end.toISOString().split('T')[0];
+        document.getElementById('start-date').value = startDate;
+        document.getElementById('end-date').value = endDate;
+    }
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59);
+    
+    // Ambil data deposit (pemasukan)
+    const ordersSnapshot = await db.ref('orders').once('value');
+    const orders = ordersSnapshot.val() || {};
+    
+    // Ambil data withdraw (pengeluaran)
+    const withdrawSnapshot = await db.ref('withdraw').once('value');
+    const withdraws = withdrawSnapshot.val() || {};
+    
+    let totalPemasukan = 0;
+    let totalPengeluaran = 0;
+    let transaksi = [];
+    
+    // Proses deposit
+    for (let id in orders) {
+        const order = orders[id];
+        if (order.type === 'deposit' && order.status === 'paid' && order.paid_at) {
+            const orderDate = new Date(order.paid_at);
+            if (orderDate >= start && orderDate <= end) {
+                totalPemasukan += order.nominal;
+                transaksi.push({
+                    tanggal: order.paid_at,
+                    jenis: 'Deposit',
+                    user: order.username,
+                    nominal: order.nominal,
+                    keterangan: `Deposit via QRIS`
+                });
+            }
+        }
+    }
+    
+    // Proses withdraw yang sudah selesai
+    for (let id in withdraws) {
+        const wd = withdraws[id];
+        if (wd.status === 'selesai' && wd.approved_at) {
+            const wdDate = new Date(wd.approved_at);
+            if (wdDate >= start && wdDate <= end) {
+                totalPengeluaran += wd.nominal;
+                transaksi.push({
+                    tanggal: wd.approved_at,
+                    jenis: 'Withdraw',
+                    user: wd.username,
+                    nominal: wd.nominal,
+                    keterangan: `Withdraw ke ${wd.metode} - ${wd.nomor_rekening}`
+                });
+            }
+        }
+    }
+    
+    // Urutkan berdasarkan tanggal
+    transaksi.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+    laporanData = transaksi;
+    
+    document.getElementById('total-pemasukan').innerHTML = formatRupiah(totalPemasukan);
+    document.getElementById('total-pengeluaran').innerHTML = formatRupiah(totalPengeluaran);
+    document.getElementById('total-laba').innerHTML = formatRupiah(totalPemasukan - totalPengeluaran);
+    document.getElementById('total-transaksi').innerHTML = transaksi.length;
+    
+    renderTransaksi();
+    renderChart(transaksi, start, end);
+}
+
+function renderTransaksi() {
+    const tbody = document.getElementById('transaksi-table-body');
+    tbody.innerHTML = laporanData.map(tr => {
+        const jenisClass = tr.jenis === 'Deposit' ? 'text-green-600' : 'text-red-600';
+        return `
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4">${new Date(tr.tanggal).toLocaleString()}</td>
+                <td class="px-6 py-4 ${jenisClass} font-semibold">${tr.jenis}</td>
+                <td class="px-6 py-4">${tr.user || '-'}</td>
+                <td class="px-6 py-4 ${jenisClass}">${formatRupiah(tr.nominal)}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">${tr.keterangan}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderChart(transaksi, start, end) {
+    // Group by date
+    const dateMap = new Map();
+    const currentDate = new Date(start);
+    while (currentDate <= end) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        dateMap.set(dateStr, { pemasukan: 0, pengeluaran: 0 });
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    for (const tr of transaksi) {
+        const dateStr = new Date(tr.tanggal).toISOString().split('T')[0];
+        if (dateMap.has(dateStr)) {
+            if (tr.jenis === 'Deposit') {
+                dateMap.get(dateStr).pemasukan += tr.nominal;
+            } else {
+                dateMap.get(dateStr).pengeluaran += tr.nominal;
+            }
+        }
+    }
+    
+    const labels = Array.from(dateMap.keys());
+    const pemasukanData = labels.map(d => dateMap.get(d).pemasukan);
+    const pengeluaranData = labels.map(d => dateMap.get(d).pengeluaran);
+    
+    if (chartInstance) chartInstance.destroy();
+    
+    const ctx = document.getElementById('chart-laporan').getContext('2d');
+    chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Pemasukan (Deposit)',
+                    data: pemasukanData,
+                    backgroundColor: 'rgba(34, 197, 94, 0.7)',
+                    borderRadius: 8
+                },
+                {
+                    label: 'Pengeluaran (Withdraw)',
+                    data: pengeluaranData,
+                    backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                    borderRadius: 8
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.dataset.label}: Rp ${ctx.raw.toLocaleString('id-ID')}`
+                    }
+                }
+            }
+        }
+    });
+}
+
+function exportCSV() {
+    if (laporanData.length === 0) {
+        alert('Tidak ada data untuk diexport');
+        return;
+    }
+    
+    const headers = ['Tanggal', 'Jenis', 'User', 'Nominal', 'Keterangan'];
+    const rows = laporanData.map(tr => [
+        new Date(tr.tanggal).toLocaleString(),
+        tr.jenis,
+        tr.user || '-',
+        tr.nominal,
+        tr.keterangan
+    ]);
+    
+    const csvContent = [headers, ...rows]
+        .map(row => row.map(cell => `"${cell}"`).join(','))
+        .join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.setAttribute('download', `laporan_keuangan_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const user = checkSession();
+    if (!user || user.role !== 'admin') {
+        window.location.href = '../index.html';
+        return;
+    }
+    loadLaporan();
+});
+</script>
+</body>
+</html>

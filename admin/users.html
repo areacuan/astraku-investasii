@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelola User - Admin AstraKu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>*{font-family:'Inter',sans-serif;}.gradient-bg{background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);}</style>
+</head>
+<body class="bg-gray-50">
+
+<nav class="bg-white shadow-md fixed w-full top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
+                <span class="text-white font-bold text-lg">A</span>
+            </div>
+            <span class="font-bold text-xl text-blue-900">AstraKu</span>
+            <span class="text-blue-600 font-semibold">Admin</span>
+        </div>
+        <div class="flex space-x-3">
+            <a href="index.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Dashboard</a>
+            <a href="users.html" class="px-3 py-2 text-blue-600 font-semibold">Users</a>
+            <a href="investasi.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Investasi</a>
+            <a href="withdraw.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Withdraw</a>
+            <a href="laporan.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Laporan</a>
+            <button onclick="logout()" class="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">Logout</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container mx-auto px-4 pt-24 pb-12">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-blue-900">👥 Kelola User</h1>
+        <div class="flex gap-3">
+            <input type="text" id="search-input" placeholder="Cari username/email..." class="border rounded-lg px-4 py-2 w-64">
+            <button onclick="searchUser()" class="gradient-bg text-white px-4 py-2 rounded-lg">Cari</button>
+        </div>
+    </div>
+    
+    <!-- Tabel User -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b">
+                    <tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Saldo</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Deposit</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="user-table-body" class="divide-y divide-gray-200"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Edit Saldo -->
+<div id="edit-saldo-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
+        <h3 class="text-xl font-bold text-blue-900 mb-4">Edit Saldo User</h3>
+        <p id="edit-saldo-user" class="text-gray-600 mb-3"></p>
+        <input type="number" id="edit-saldo-nominal" class="w-full border rounded-lg px-4 py-3 mb-4" placeholder="Nominal">
+        <div class="flex gap-3">
+            <select id="edit-saldo-action" class="flex-1 border rounded-lg px-4 py-2">
+                <option value="add">+ Tambah Saldo</option>
+                <option value="reduce">- Kurangi Saldo</option>
+                <option value="set">= Set Saldo</option>
+            </select>
+            <button onclick="saveSaldo()" class="gradient-bg text-white px-4 py-2 rounded-lg">Simpan</button>
+            <button onclick="closeSaldoModal()" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg">Batal</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Edit Rekening -->
+<div id="edit-rekening-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
+        <h3 class="text-xl font-bold text-blue-900 mb-4">Edit Data Rekening</h3>
+        <input type="text" id="edit-rekening-uid" hidden>
+        <div class="mb-3">
+            <label class="block text-gray-600 mb-1">Metode</label>
+            <select id="edit-rekening-metode" class="w-full border rounded-lg px-4 py-2">
+                <option value="BCA">BCA</option>
+                <option value="Mandiri">Mandiri</option>
+                <option value="BRI">BRI</option>
+                <option value="BNI">BNI</option>
+                <option value="DANA">DANA</option>
+                <option value="OVO">OVO</option>
+                <option value="GoPay">GoPay</option>
+                <option value="LinkAja">LinkAja</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="block text-gray-600 mb-1">Nomor Rekening</label>
+            <input type="text" id="edit-rekening-nomor" class="w-full border rounded-lg px-4 py-2">
+        </div>
+        <div class="mb-4">
+            <label class="block text-gray-600 mb-1">Nama Pemilik</label>
+            <input type="text" id="edit-rekening-nama" class="w-full border rounded-lg px-4 py-2">
+        </div>
+        <div class="flex gap-3">
+            <button onclick="saveRekening()" class="flex-1 gradient-bg text-white py-2 rounded-lg">Simpan</button>
+            <button onclick="closeRekeningModal()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg">Batal</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Reset Password -->
+<div id="reset-password-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
+        <h3 class="text-xl font-bold text-blue-900 mb-4">Reset Password</h3>
+        <p id="reset-password-user" class="text-gray-600 mb-3"></p>
+        <input type="password" id="reset-password-new" class="w-full border rounded-lg px-4 py-3 mb-4" placeholder="Password Baru">
+        <div class="flex gap-3">
+            <button onclick="saveResetPassword()" class="flex-1 gradient-bg text-white py-2 rounded-lg">Reset</button>
+            <button onclick="closeResetModal()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg">Batal</button>
+        </div>
+    </div>
+</div>
+
+<script src="../js/firebase-config.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+let currentEditUserId = null;
+let allUsers = [];
+
+async function loadUsers() {
+    const snapshot = await db.ref('users').once('value');
+    const users = snapshot.val() || {};
+    allUsers = [];
+    
+    for (let uid in users) {
+        allUsers.push({
+            uid: uid,
+            ...users[uid]
+        });
+    }
+    
+    renderUsers(allUsers);
+}
+
+function renderUsers(users) {
+    const tbody = document.getElementById('user-table-body');
+    tbody.innerHTML = users.map(user => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4">
+                <div class="font-medium text-gray-900">${user.username || '-'}</div>
+                <div class="text-xs text-gray-500">${user.referral_code || '-'}</div>
+            </td>
+            <td class="px-6 py-4">
+                <div>${user.email || '-'}</div>
+                <div class="text-xs text-gray-500">${user.telepon || '-'}</div>
+            </td>
+            <td class="px-6 py-4 font-semibold ${(user.saldo || 0) > 0 ? 'text-green-600' : 'text-red-600'}">
+                ${formatRupiah(user.saldo || 0)}
+            </td>
+            <td class="px-6 py-4">${formatRupiah(user.total_deposit || 0)}</td>
+            <td class="px-6 py-4">
+                ${user.banned ? 
+                    '<span class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded">Banned</span>' : 
+                    '<span class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Aktif</span>'}
+            </td>
+            <td class="px-6 py-4">
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="openEditSaldo('${user.uid}', '${user.username}')" class="text-blue-600 hover:text-blue-800 text-sm">Edit Saldo</button>
+                    <button onclick="openEditRekening('${user.uid}', '${user.username}')" class="text-green-600 hover:text-green-800 text-sm">Edit Rekening</button>
+                    <button onclick="openResetPassword('${user.uid}', '${user.username}')" class="text-yellow-600 hover:text-yellow-800 text-sm">Reset Pass</button>
+                    <button onclick="toggleBanUser('${user.uid}', ${user.banned || false})" class="${user.banned ? 'text-green-600' : 'text-red-600'} hover:opacity-80 text-sm">
+                        ${user.banned ? 'Unban' : 'Ban'}
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function searchUser() {
+    const keyword = document.getElementById('search-input').value.toLowerCase();
+    const filtered = allUsers.filter(user => 
+        user.username?.toLowerCase().includes(keyword) || 
+        user.email?.toLowerCase().includes(keyword)
+    );
+    renderUsers(filtered);
+}
+
+// Edit Saldo
+function openEditSaldo(uid, username) {
+    currentEditUserId = uid;
+    document.getElementById('edit-saldo-user').innerHTML = `User: ${username}`;
+    document.getElementById('edit-saldo-nominal').value = '';
+    document.getElementById('edit-saldo-modal').classList.remove('hidden');
+}
+
+async function saveSaldo() {
+    const nominal = parseInt(document.getElementById('edit-saldo-nominal').value);
+    const action = document.getElementById('edit-saldo-action').value;
+    
+    if (isNaN(nominal) || nominal <= 0) {
+        alert('Masukkan nominal yang valid');
+        return;
+    }
+    
+    const snapshot = await db.ref('users/' + currentEditUserId).once('value');
+    const user = snapshot.val();
+    let newSaldo = user.saldo || 0;
+    
+    if (action === 'add') {
+        newSaldo += nominal;
+    } else if (action === 'reduce') {
+        newSaldo -= nominal;
+    } else {
+        newSaldo = nominal;
+    }
+    
+    if (newSaldo < 0) newSaldo = 0;
+    
+    await db.ref('users/' + currentEditUserId).update({ saldo: newSaldo });
+    alert('Saldo berhasil diupdate!');
+    closeSaldoModal();
+    loadUsers();
+}
+
+function closeSaldoModal() {
+    document.getElementById('edit-saldo-modal').classList.add('hidden');
+    currentEditUserId = null;
+}
+
+// Edit Rekening
+function openEditRekening(uid, username) {
+    currentEditUserId = uid;
+    db.ref('users/' + uid).once('value').then(snapshot => {
+        const user = snapshot.val();
+        document.getElementById('edit-rekening-metode').value = user.bank || 'BCA';
+        document.getElementById('edit-rekening-nomor').value = user.nomor_rekening || '';
+        document.getElementById('edit-rekening-nama').value = user.nama_pemilik || '';
+        document.getElementById('edit-rekening-modal').classList.remove('hidden');
+    });
+}
+
+async function saveRekening() {
+    const metode = document.getElementById('edit-rekening-metode').value;
+    const nomor = document.getElementById('edit-rekening-nomor').value;
+    const nama = document.getElementById('edit-rekening-nama').value;
+    
+    await db.ref('users/' + currentEditUserId).update({
+        bank: metode,
+        nomor_rekening: nomor,
+        nama_pemilik: nama
+    });
+    
+    alert('Data rekening berhasil diupdate!');
+    closeRekeningModal();
+    loadUsers();
+}
+
+function closeRekeningModal() {
+    document.getElementById('edit-rekening-modal').classList.add('hidden');
+}
+
+// Reset Password
+function openResetPassword(uid, username) {
+    currentEditUserId = uid;
+    document.getElementById('reset-password-user').innerHTML = `User: ${username}`;
+    document.getElementById('reset-password-new').value = '';
+    document.getElementById('reset-password-modal').classList.remove('hidden');
+}
+
+async function saveResetPassword() {
+    const newPass = document.getElementById('reset-password-new').value;
+    if (newPass.length < 6) {
+        alert('Password minimal 6 karakter');
+        return;
+    }
+    
+    await db.ref('users/' + currentEditUserId).update({ password: newPass });
+    alert('Password berhasil direset!');
+    closeResetModal();
+}
+
+function closeResetModal() {
+    document.getElementById('reset-password-modal').classList.add('hidden');
+}
+
+// Ban/Unban User
+async function toggleBanUser(uid, isBanned) {
+    const newStatus = !isBanned;
+    await db.ref('users/' + uid).update({ banned: newStatus });
+    alert(`User ${newStatus ? 'diblokir' : 'diaktifkan kembali'}`);
+    loadUsers();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const user = checkSession();
+    if (!user || user.role !== 'admin') {
+        window.location.href = '../index.html';
+        return;
+    }
+    loadUsers();
+});
+</script>
+</body>
+</html>

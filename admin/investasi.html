@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelola Investasi - Admin AstraKu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>*{font-family:'Inter',sans-serif;}.gradient-bg{background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);}</style>
+</head>
+<body class="bg-gray-50">
+
+<nav class="bg-white shadow-md fixed w-full top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
+                <span class="text-white font-bold text-lg">A</span>
+            </div>
+            <span class="font-bold text-xl text-blue-900">AstraKu</span>
+            <span class="text-blue-600 font-semibold">Admin</span>
+        </div>
+        <div class="flex space-x-3">
+            <a href="index.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Dashboard</a>
+            <a href="users.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Users</a>
+            <a href="investasi.html" class="px-3 py-2 text-blue-600 font-semibold">Investasi</a>
+            <a href="withdraw.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Withdraw</a>
+            <a href="laporan.html" class="px-3 py-2 text-gray-600 hover:text-blue-600">Laporan</a>
+            <button onclick="logout()" class="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">Logout</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container mx-auto px-4 pt-24 pb-12">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-blue-900">📊 Kelola Investasi</h1>
+        <div class="flex gap-2">
+            <select id="status-filter" class="border rounded-lg px-4 py-2">
+                <option value="all">Semua</option>
+                <option value="aktif">Aktif</option>
+                <option value="selesai">Selesai</option>
+            </select>
+            <button onclick="loadInvestasi()" class="gradient-bg text-white px-4 py-2 rounded-lg">Refresh</button>
+        </div>
+    </div>
+    
+    <!-- Paket Settings -->
+    <div class="bg-white rounded-xl p-6 shadow-sm mb-6">
+        <h3 class="text-lg font-bold text-blue-900 mb-4">⚙️ Pengaturan Return Rate per Paket</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+                <label class="text-sm text-gray-600">Pot v1 (2%)</label>
+                <input type="number" id="rate-v1" class="w-full border rounded-lg px-3 py-2" step="0.1">
+            </div>
+            <div>
+                <label class="text-sm text-gray-600">Pot v2 (3%)</label>
+                <input type="number" id="rate-v2" class="w-full border rounded-lg px-3 py-2" step="0.1">
+            </div>
+            <div>
+                <label class="text-sm text-gray-600">Pot v3 (5%)</label>
+                <input type="number" id="rate-v3" class="w-full border rounded-lg px-3 py-2" step="0.1">
+            </div>
+            <div>
+                <label class="text-sm text-gray-600">Pot v4 (7%)</label>
+                <input type="number" id="rate-v4" class="w-full border rounded-lg px-3 py-2" step="0.1">
+            </div>
+        </div>
+        <button onclick="saveReturnRates()" class="mt-4 gradient-bg text-white px-4 py-2 rounded-lg">Simpan Perubahan</button>
+    </div>
+    
+    <!-- Tabel Investasi -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Paket</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nominal</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Return Rate</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sisa Hari</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="investasi-table-body" class="divide-y divide-gray-200"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Force Stop -->
+<div id="force-stop-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
+        <h3 class="text-xl font-bold text-red-600 mb-4">⚠️ Force Stop Investasi</h3>
+        <p id="force-stop-info" class="text-gray-600 mb-4"></p>
+        <p class="text-sm text-gray-500 mb-4">Tindakan ini akan menghentikan investasi dan mengembalikan sisa modal ke saldo user.</p>
+        <div class="flex gap-3">
+            <button onclick="confirmForceStop()" class="flex-1 bg-red-600 text-white py-2 rounded-lg">Ya, Force Stop</button>
+            <button onclick="closeForceStopModal()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg">Batal</button>
+        </div>
+    </div>
+</div>
+
+<script src="../js/firebase-config.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+let investasiList = [];
+let currentForceStopId = null;
+
+async function loadInvestasi() {
+    const snapshot = await db.ref('investasi').once('value');
+    const investasi = snapshot.val() || {};
+    const filter = document.getElementById('status-filter').value;
+    
+    investasiList = [];
+    for (let id in investasi) {
+        if (filter === 'all' || investasi[id].status === filter) {
+            investasiList.push({
+                id: id,
+                ...investasi[id]
+            });
+        }
+    }
+    
+    // Urutkan dari yang terbaru
+    investasiList.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    renderInvestasi();
+}
+
+function renderInvestasi() {
+    const tbody = document.getElementById('investasi-table-body');
+    tbody.innerHTML = investasiList.map(inv => {
+        const sisaHari = inv.status === 'aktif' ? getRemainingDays(inv.end_date) : 0;
+        const statusBadge = inv.status === 'aktif' 
+            ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Aktif</span>'
+            : '<span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">Selesai</span>';
+        
+        return `
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4">
+                    <div class="font-medium">${inv.username || '-'}</div>
+                    <div class="text-xs text-gray-500">${new Date(inv.created_at).toLocaleDateString()}</div>
+                </td>
+                <td class="px-6 py-4">${inv.paket_nama || inv.paket}</td>
+                <td class="px-6 py-4 font-semibold">${formatRupiah(inv.nominal)}</td>
+                <td class="px-6 py-4">${inv.return_persen}% / hari</td>
+                <td class="px-6 py-4">${inv.status === 'aktif' ? sisaHari + ' hari' : '-'}</td>
+                <td class="px-6 py-4">${statusBadge}</td>
+                <td class="px-6 py-4">
+                    ${inv.status === 'aktif' ? 
+                        `<button onclick="openForceStop('${inv.id}', '${inv.username}', ${formatRupiah(inv.nominal)})" class="text-red-600 hover:text-red-800 text-sm">Force Stop</button>` : 
+                        '-'}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Force Stop Investasi
+function openForceStop(id, username, nominal) {
+    currentForceStopId = id;
+    document.getElementById('force-stop-info').innerHTML = `User: ${username}<br>Nominal: ${nominal}`;
+    document.getElementById('force-stop-modal').classList.remove('hidden');
+}
+
+async function confirmForceStop() {
+    if (!currentForceStopId) return;
+    
+    const snapshot = await db.ref('investasi/' + currentForceStopId).once('value');
+    const investasi = snapshot.val();
+    
+    if (investasi && investasi.status === 'aktif') {
+        // Kembalikan sisa modal ke user
+        const userSnapshot = await db.ref('users/' + investasi.user_id).once('value');
+        const user = userSnapshot.val();
+        const newSaldo = (user.saldo || 0) + investasi.nominal;
+        
+        await db.ref('users/' + investasi.user_id).update({ saldo: newSaldo });
+        await db.ref('investasi/' + currentForceStopId).update({
+            status: 'force_stopped',
+            force_stopped_at: new Date().toISOString(),
+            force_stopped_by: checkSession()?.username
+        });
+        
+        alert('Investasi berhasil di-force stop! Modal dikembalikan ke user.');
+    }
+    
+    closeForceStopModal();
+    loadInvestasi();
+}
+
+function closeForceStopModal() {
+    document.getElementById('force-stop-modal').classList.add('hidden');
+    currentForceStopId = null;
+}
+
+// Save Return Rates ke Firebase
+async function saveReturnRates() {
+    const rates = {
+        v1: parseFloat(document.getElementById('rate-v1').value) || 2,
+        v2: parseFloat(document.getElementById('rate-v2').value) || 3,
+        v3: parseFloat(document.getElementById('rate-v3').value) || 5,
+        v4: parseFloat(document.getElementById('rate-v4').value) || 7
+    };
+    
+    await db.ref('settings/return_rates').set(rates);
+    alert('Return rate berhasil disimpan!');
+}
+
+async function loadReturnRates() {
+    const snapshot = await db.ref('settings/return_rates').once('value');
+    const rates = snapshot.val() || { v1: 2, v2: 3, v3: 5, v4: 7 };
+    
+    document.getElementById('rate-v1').value = rates.v1;
+    document.getElementById('rate-v2').value = rates.v2;
+    document.getElementById('rate-v3').value = rates.v3;
+    document.getElementById('rate-v4').value = rates.v4;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const user = checkSession();
+    if (!user || user.role !== 'admin') {
+        window.location.href = '../index.html';
+        return;
+    }
+    loadReturnRates();
+    loadInvestasi();
+    
+    document.getElementById('status-filter').addEventListener('change', () => loadInvestasi());
+});
+</script>
+</body>
+</html>
